@@ -1,2 +1,3 @@
 https://google.com/index.html
 https://ya.ru/index.html
+https://vk.com/index.html

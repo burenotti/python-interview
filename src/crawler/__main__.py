@@ -79,13 +79,23 @@ async def main() -> None:
     args = parse_args(sys.argv[1:])
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
+
     with open(args.input_file) as input_file:
         input_urls_raw = input_file.readlines()
         input_urls = [URL(url) for url in input_urls_raw]
 
     async with aiohttp.ClientSession() as session:
-        tasks = [get_url_and_save(session, url, args.output_dir) for url in input_urls]
-        await asyncio.gather(*tasks)
+        semaphore = asyncio.Semaphore(128)
+        tasks = set[asyncio.Task]()
+
+        for url in input_urls:
+            await semaphore.acquire()
+            task = asyncio.create_task(get_url_and_save(session, url, args.output_dir))
+            task.add_done_callback(lambda t: semaphore.release())
+            task.add_done_callback(lambda t: tasks.remove(t))
+            tasks.add(task)
+
+        await asyncio.wait(tasks)
 
 
 if __name__ == "__main__":
