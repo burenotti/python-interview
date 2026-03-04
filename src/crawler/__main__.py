@@ -13,6 +13,23 @@ import sys
 import pathlib
 from argparse import ArgumentParser, Namespace
 
+thread_pool = ThreadPoolExecutor(max_workers=16)
+
+
+def runs_in_executor[**P, R](
+    executor: Executor,
+) -> Callable[[Callable[P, R]], Callable[P, Coroutine[R, Any, Any]]]:
+    def decorator(sync_func: Callable[P, R]) -> Callable[P, Coroutine[Any, Any, R]]:
+        @functools.wraps(sync_func)
+        async def runner(*args: P.args, **kwargs: P.kwargs) -> R:
+            loop = asyncio.get_running_loop()
+            binded = functools.partial(sync_func, *args, **kwargs)
+            return await loop.run_in_executor(executor, binded)
+
+        return runner
+
+    return decorator
+
 
 class CLIArguments(Namespace):
     input_file: pathlib.Path
@@ -39,6 +56,11 @@ def parse_args(argv: list[str]) -> CLIArguments:
     parser.parse_args(argv, namespace=args)
     return args
 
+@runs_in_executor(thread_pool)
+def save_to_file(path: pathlib.Path, data: bytes) -> None:
+    with open(path, "wb") as output_file:
+        output_file.write(data)
+
 
 async def get_url_and_save(
     session: aiohttp.ClientSession,
@@ -50,8 +72,7 @@ async def get_url_and_save(
 
     filename_parts = str(uuid.uuid4()) + ".".join(pathlib.Path(url.parts[-1]).suffixes)
     output_path = output_dir / filename_parts
-    with open(output_path, "wb") as output_file:
-        output_file.write(response_content)
+    await save_to_file(output_path, response_content)
 
 
 async def main() -> None:
