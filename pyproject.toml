@@ -11,8 +11,12 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "basedpyright>=1.38.2",
+    "pyright>=1.1.408",
     "ruff>=0.15.4",
-    "ty>=0.0.20",
+]
+tests = [
+    "pytest>=9.0.2",
 ]
 
 [build-system]
