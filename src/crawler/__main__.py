@@ -40,6 +40,20 @@ def parse_args(argv: list[str]) -> CLIArguments:
     return args
 
 
+async def get_url_and_save(
+    session: aiohttp.ClientSession,
+    url: URL,
+    output_dir: pathlib.Path,
+) -> None:
+    response = await session.get(url)
+    response_content = await response.read()
+
+    filename_parts = str(uuid.uuid4()) + ".".join(pathlib.Path(url.parts[-1]).suffixes)
+    output_path = output_dir / filename_parts
+    with open(output_path, "wb") as output_file:
+        output_file.write(response_content)
+
+
 async def main() -> None:
     args = parse_args(sys.argv[1:])
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -48,17 +62,9 @@ async def main() -> None:
         input_urls_raw = input_file.readlines()
         input_urls = [URL(url) for url in input_urls_raw]
 
-    for url in input_urls:
-        session = aiohttp.ClientSession()
-        response = await session.get(url)
-        response_content = await response.read()
-
-        filename_parts = str(uuid.uuid4()) + ".".join(
-            pathlib.Path(url.parts[-1]).suffixes
-        )
-        output_path = args.output_dir / filename_parts
-        with open(output_path, "wb") as output_file:
-            output_file.write(response_content)
+    async with aiohttp.ClientSession() as session:
+        tasks = [get_url_and_save(session, url, args.output_dir) for url in input_urls]
+        await asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":
